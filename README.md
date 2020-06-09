@@ -1,5 +1,5 @@
 # My portfolio
-## A selection of Python code I produced over the years
+## A selection of Python code produced over the years
 #### Versão em português: [README_PT](/README_PT.md)
 
 ##  [Imaginos](/Imaginos)

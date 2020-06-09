@@ -1,0 +1,26 @@
+MAIN_SELECT_BUTTON : Select
+MAIN_CLOSE_BUTTON : Close
+SELECT_OPERATION: Select operation
+OTSU : Otsu binarization
+WATERSHED : Watershed
+AOS : Adaptative Opening Segregation
+SHAPE : Shape factors
+AAPS : Arns-Adler pore-scale permeability
+SKEL: Skeletonizer
+SBPS: Skeleton based pore-scale permeability
+LABL: Continuos region labeling
+ESTL: Export to STL
+RESC: Re-scale
+MCAV: Marching Cubes Area and Volume
+FFSO: Formation factor solver
+DESCRIPTION_OTSU: Performs an automated binarization, the threshold is chosen using Otsu variance minimization method
+DESCRIPTION_WATE: Performs a watershed image segmantation using a variation of the Gotsink method. Compactness parameter is kept, but the fixed footprint is replaced by a automated calculation for each marker, equivalent to half of its distance map value.
+DESCRIPTION_AOSE: Performs an adptative opening segmentation, an alternative method to watershed segmentation.
+DESCRIPTION_SHAP: Calculates shape factor in a labeled image.
+DESCRIPTION_AAPP: Calculates the pore-scale permeability using the Arns-Adler method, which approximates the non-linear viscous flow equation system to a linear equation system by estimating a non-viscous permeability in each voxel based on the distance map.
+DESCRIPTION_SKEL: Skeletonizes a binary image.
+DESCRIPTION_SBPP: Calculates pore-scale permeability by associating a cross-section permeability to each skeleton voxel in a sekeletonized image.
+BTN_PREVIEW_PREVIEW: Preview
+BTN_PREVIEW_RUN: Run
+BTN_PREVIEW_CANCEL: Cancel
+DESCRIPTION_STL: step_size(int) -Step size in voxels. Default 1. Larger steps yield faster but coarser results. The result will always be topologically correct though.

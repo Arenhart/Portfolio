@@ -194,7 +194,6 @@ class ImageStacker():
         im = pil.fromarray(arr3)
         #im = self.output_img
         im.show()
-        0/0
         self.out_edge_image.show()
         self.original_edges.show()
         #pil.fromarray(self.variance_map.astype('uint8')).show()

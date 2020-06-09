@@ -31,6 +31,9 @@ with open('pma.cfg',mode = 'r') as file:
 # Helper functions
 
 def face_orientation(v0, v1, v2):
+	'''
+	Return outward perpendicular vector distance of face along the z axis
+	'''
 	v0 = np.array(v0),
 	v1 = np.array(v1)
 	v2 = np.array(v2)
@@ -42,9 +45,7 @@ def face_orientation(v0, v1, v2):
 		return 1
 	else:
 		return 0
-	'''
-	Return outward perpendicular vector distance of face along the z axis
-	'''
+
 	
 
 def area_of_triangle(p0, p1, p2):

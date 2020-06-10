@@ -567,9 +567,9 @@ def analisar_imagens():
 		
     return stacker
 
-#os.chdir('C:\\Users\\Arenhart\\Desktop\\temp nicolas')
-#teste()  
-stack = analisar_imagens()  
+os.chdir('D:\Scripts Python\Imagens\Nicolas')
+teste()  
+#stack = analisar_imagens()  
     
     
     

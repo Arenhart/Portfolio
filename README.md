@@ -1,10 +1,10 @@
 # My portfolio
-## A selection of Python code I produced over the years
+## A selection of Python code produced over the years
 #### Versão em português: [README_PT](/README_PT.md)
 
-##  [Imaginos](/Imaginos)
+##  [Similis](/Similis)
 A GUI application with a collection of image processing options, used as an educational tool for my lectures on the grad course Digital Image Processing.
-![](Imaginos/Sample/sobel.PNG)
+![](Similis/Sample/sobel.PNG)
 
 ##  [Monte Carlo Conductivity Simulator](/Monte%20Carlo%20Conductivity%20Simulator)
 The results of both my Masters dissertation and Doctorate thesis (discreet and continuous simulation, respectivelly).<br/>

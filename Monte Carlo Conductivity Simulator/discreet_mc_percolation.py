@@ -278,9 +278,22 @@ class Simulacao(object):
 			
 		return self.percolations, self.interconectivities
 		
-def varrer_percolacao(modo_distribuicao = 'fibras',
+def scan_percolation(modo_distribuicao = 'fibras',
 					  parametros = {'logmean' : 1.0,
 									'logstd' : 0.5}):
+	'''
+	Performs a binary search of the possible lower and upper bounds for the
+	percolation threshold
+	
+	Args:
+		modo_distribuicao (string) - The shape of the conductive particles, valid values
+		are 'fibras', 'pontos' and 'esferas'
+		parametros (dict) - A dictionary containing the distribution parmeters of the particle
+		
+	Return:
+		list - A list containg two floats, representing lower and upper bound of the 
+		percolation threshold
+	'''
 	
 	percolation_bounds = np.array((0, 0.5))
 	fuzzy_range = np.array((None,None))
@@ -824,7 +837,7 @@ class Toplevel1:
 		if self.VAR_autocalc.get() == '1':
 			use_fast = messagebox.askyesno("Fast", "Use fast datapoints?")
 			print(use_fast)
-			percolation_bounds = varrer_percolacao(
+			percolation_bounds = scan_percolation(
 					     modo_distribuicao = variables['filler_type'][0].lower(),
 					     parametros = {'logmean' : logmean, 'logstd' : logstd})
 			expanded_percolation_bounds = [0.8 * percolation_bounds[0],

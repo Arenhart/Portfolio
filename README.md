@@ -13,7 +13,7 @@ This is very relevant, since additives have a high cost and reduce mechanical pr
 **Dissertation link:** [Método de previsão de limiar de percolação e condutividade elétrica em compósitos poliméricos por simulação de Monte Carlo](https://repositorio.ufsc.br/bitstream/handle/123456789/99274/304697.pdf?sequence=1&isAllowed=y)<br/>
 **Thesis link:** [Modelos de condutividade em compósitos condutores por simulação de Monte Carlo no espaço contínuo](https://repositorio.ufsc.br/xmlui/bitstream/handle/123456789/167688/340638.pdf?sequence=1&isAllowed=y)<br/>
 
-![](/Monte%20Carlo%20Conductivity%20Simulator/Sample/discreet.png)<br/>
+![](/Monte%20Carlo%20Conductivity%20Simulator/Sample/discreet.PNG)<br/>
 ![](/Monte%20Carlo%20Conductivity%20Simulator/Sample/blender_output.png)<br/>
 
 ##  [Porous Media Analyzer](/Porous%20Media%20Analyzer)

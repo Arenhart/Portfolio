@@ -29,6 +29,6 @@ Coleção de scripts curtos para resolver problemas pontuais.<br/>
 - [**Esferas Coloridas**](/Other%20Scripts/color_spheres.py) - Uma exploração de uma imagem de ilusão de ótica que viralizou em 2019 (não, não o vestido).
 - [**Inspetor Covid-19**](/Other%20Scripts/covid19_inspector) - Um script curto que obtém os dados de casos ativos de covid do dataset da universidade John Hopkins e os ajusta a um modelo de decaimento exponencial, ajudando a identificar se o pico de contágio passou.
 - [**Digital Rock Portal Tiff Downloader**](/Other%20Scripts/drp_downloader.py) - Uma ferramenta desenhada para baixar imagens de rochas prosas em formato .tiff do [Digital Rock Portal](https://www.digitalrocksportal.org).
-- [**Leitor de Interferometer**](/Other%20Scripts/interferometer_reading.py) - Trata dados de rugosidade superficial adquiridos por iterferometria de luz para prever compatibilidade de interface em sinterização por difusão.
+- [**Leitor de Interferometria**](/Other%20Scripts/interferometer_reading.py) - Trata dados de rugosidade superficial adquiridos por iterferometria de luz para prever compatibilidade de interface em sinterização por difusão.
 - [**Gerador de Coordenadas Esféricas**](/Other%20Scripts/sphere_coordinates_distribution.py) - Representação e solução para um erro comum na geração de coordenadas esféricas aleatórias.
 

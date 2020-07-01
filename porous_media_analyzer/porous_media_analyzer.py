@@ -6,6 +6,7 @@ Created on Fri Jun 28 15:11:34 2019
 """
 
 import re, time, sys, math, os, itertools
+
 import numpy as np
 from scipy import ndimage, misc, spatial
 import matplotlib.pyplot as plt
@@ -14,15 +15,15 @@ import tkinter.filedialog as filedialog
 import tkinter.messagebox as messagebox
 import tkinter as tk
 from PIL import Image, ImageTk
-from conductivity_solver import ConductivitySolver
 from stl import mesh
+
+from conductivity_solver import ConductivitySolver
 
 PI = math.pi
 MC_TEMPLATES_FILE = 'marching cubes templates.dat'
 LOCATION = os.path.realpath(os.path.join(os.getcwd(), os.path.dirname(__file__)))
 
 config = {}
-
 with open(os.path.join(LOCATION, 'pma.cfg'), mode='r') as file:
     for line in file:
         key, value = line.split(':')
@@ -39,7 +40,7 @@ def face_orientation(v0, v1, v2):
     v0 = np.array(v0),
     v1 = np.array(v1)
     v2 = np.array(v2)
-    vector = np.cross(v1-v0,v2-v0)
+    vector = np.cross(v1 - v0, v2 - v0)
     z_comp = vector[0][2]
     if z_comp > 0.1:
         return -1
@@ -47,7 +48,6 @@ def face_orientation(v0, v1, v2):
         return 1
     else:
         return 0
-
 
 
 def area_of_triangle(p0, p1, p2):
@@ -61,13 +61,13 @@ def area_of_triangle(p0, p1, p2):
     area = math.sqrt(s*product_of_diferences)
     return area
 
+
 def mc_templates_generator(override = False):
+    '''
+    Generates a marching cubes template list file, if one is not available
+    '''
     if MC_TEMPLATES_FILE in os.listdir(os.getcwd()) and not override:
         return
-    '''
-    point coordinate in (x,y,z) summation value:
-    (x,y,z) = 2 ** (x+2y+4z)
-    '''
     summation_to_coordinate = {}
     for i in [(x,y,z) for x in range(2) for y in range(2) for z in range(2)]:
         summation_to_coordinate[2 ** (i[0] + 2*i[1] + 4*i[2])] = i
@@ -100,6 +100,12 @@ def mc_templates_generator(override = False):
             file.write('\n')
 
 def create_mc_template_list(spacing = (1,1,1)):
+    '''
+    Return area and volume lists for the marching cubes templates
+    Reads the templates file
+    Input:
+        Tuple with three values for x, y, and z lengths of the voxel edges
+    '''
     areas = {}
     volumes = {}
     triangles = {}
@@ -151,7 +157,7 @@ def create_mc_template_list(spacing = (1,1,1)):
                 basic_volume += mean_z * proj_area * direction
 
             for i in range(len(verts)):
-                verts[i] = [i[0] * i[1] for i in zip(verts[i],spacing)]
+                verts[i] = [j[0] * j[1] for j in zip(verts[i], spacing)]
 
             triangles[index] = (tuple(verts), tuple(faces), basic_volume)
 
@@ -172,7 +178,10 @@ def create_mc_template_list(spacing = (1,1,1)):
 
 
 def cube_generator():
-
+    '''
+    Generator yelds (x, y, z) coordinates for hollow cubes centered in (0, 0, 0)
+    and edge length increasing by 2 each new cube.
+    '''
     x = -1
     y = -1
     z = -1
@@ -225,11 +234,24 @@ def cube_generator():
 
         yield out
 
+def check_percolation(img):
+    '''
+    Returns True if binary image percolates along the z axis
+    '''
+    labeled = ndimage.label(img)[0]
+    bottom_labels = np.unique(labeled[:,:,0])
+    top_labels = np.unique(labeled[:,:,-1])
+    percolating_labels = np.intersect1d(
+				               bottom_labels, top_labels, assume_unique = True)
+    percolating_labels_total = (percolating_labels > 0).sum()
+
+    return percolating_labels_total > 0
+
 # IO functions
 def load_raw(raw_file_path):
     '''
     Takes a file path for a raw image, if it has a valid file and an apropriate
-    .config file, will open it, convert into a numpy array and return de array
+    .config file, will open it, convert into a numpy array and return the array
     along the config file and the config order, used to save the output raw
     file.
     '''
@@ -253,7 +275,7 @@ def load_raw(raw_file_path):
 
 def load_bmp_files(files):
     '''
-    load all bmps in the folder
+    Loads and stacks .bmp files
     '''
     config = {}
     config_order = []
@@ -718,16 +740,24 @@ def marching_cubes_area_and_volume(img, spacing = (1,1,1)):
 
     return areas, volumes
 
+def breakthrough_diameter(img, step = 0.2):
+
+    radius = 0
+    dist = ndimage.morphology.distance_transform_edt(img)
+    while check_percolation(dist > radius):
+        radius += step
+
+    return 2 * radius
+
+
 #Interface
 
 class Interface():
 
-    def __init__(self, input_path = None, output_path = None):
+    def __init__(self):
 
         self.root = tk.Tk()
         self.root.title('Porous Media Analyzer')
-        self.input_path = input_path
-        self.output_path = output_path
 
         self.operations = {}
         self.strings = {}
@@ -753,7 +783,8 @@ class Interface():
                 (self.get_string('ESTL'), export_stl, False, '_ESTL'),
                 (self.get_string('RESC'), rescale, False, '_RESC'),
                 (self.get_string('MCAV'), marching_cubes_area_and_volume, False, '_MCAV'),
-                (self.get_string('FFSO'), formation_factor_solver, False, '_FFSO')):
+                (self.get_string('FFSO'), formation_factor_solver, False, '_FFSO'),
+                (self.get_string('BKDI'), breakthrough_diameter, False, '_BKDI')):
             self.operations[op_name] = {
                     'function': func,
                     'preview': preview,
@@ -808,10 +839,7 @@ class Interface():
     def select_image(self):
         self.root.withdraw()
 
-        if self.input_path:
-            self.img_path = self.input_path
-        else:
-            self.img_path = filedialog.askopenfilename()
+        self.img_path = filedialog.askopenfilename()
 
         self.img, self.img_config, self.config_order = load_raw(self.img_path)
         self.top_preview = tk.Toplevel(self.root)
@@ -884,16 +912,10 @@ class Interface():
 
         if op_suffix == '_OTSU':
             out_img = otsu_threshold(self.img)
-            if self.output_path:
-                save_raw(self.output_path,
-                         out_img,
-                         self.img_config,
-                         self.config_order)
-            else:
-                save_raw(self.img_path[:-4]+op_suffix+'.raw',
-                         out_img,
-                         self.img_config,
-                         self.config_order)
+            save_raw(self.img_path[:-4]+op_suffix+'.raw',
+                     out_img,
+                     self.img_config,
+                     self.config_order)
 
         elif op_suffix == '_WATE':
             try:
@@ -902,10 +924,7 @@ class Interface():
                 messagebox.showinfo('Error', 'Entry is not a float')
                 return
             out_img = watershed(self.img, compactness)
-            if self.output_path:
-                save_raw(self.output_path)
-            else:
-                save_raw(self.img_path[:-4]+op_suffix+'.raw',
+            save_raw(self.img_path[:-4]+op_suffix+'.raw',
                          out_img,
                          self.img_config,
                          self.config_order)
@@ -916,10 +935,7 @@ class Interface():
                 messagebox.showinfo('Error', 'Entry is not a float')
                 return
             out_img = segregator(self.img, threshold)
-            if self.output_path:
-                save_raw(self.output_path)
-            else:
-                save_raw(self.img_path[:-4]+op_suffix+'.raw',
+            save_raw(self.img_path[:-4]+op_suffix+'.raw',
                          out_img,
                          self.img_config,
                          self.config_order)
@@ -936,20 +952,14 @@ class Interface():
 
         elif op_suffix == '_SKEL':
             out_img = skeletonizer(self.img)
-            if self.output_path:
-                save_raw(self.output_path)
-            else:
-                save_raw(self.img_path[:-4]+op_suffix+'.raw',
+            save_raw(self.img_path[:-4]+op_suffix+'.raw',
                          out_img,
                          self.img_config,
                          self.config_order)
 
         elif op_suffix == '_LABL':
             out_img = labeling(self.img)
-            if self.output_path:
-                save_raw(self.output_path)
-            else:
-                save_raw(self.img_path[:-4]+op_suffix+'.raw',
+            save_raw(self.img_path[:-4]+op_suffix+'.raw',
                          out_img,
                          self.img_config,
                          self.config_order)
@@ -979,14 +989,7 @@ class Interface():
 
             out_img = rescale(self.img, factor)
 
-            if self.output_path:
-                save_raw(self.output_path,
-                         out_img,
-                         self.img_config,
-                         self.config_order)
-
-            else:
-                save_raw(self.img_path[:-4]+op_suffix+'.raw',
+            save_raw(self.img_path[:-4]+op_suffix+'.raw',
                          out_img,
                          self.img_config,
                          self.config_order)
@@ -998,6 +1001,14 @@ class Interface():
                 file.write('Index\tArea\tVolume\n')
                 for i in range(1,len(areas)):
                     file.write(f'{i}\t{areas[i]}\t{volumes[i]}\n')
+            print(time.perf_counter() - start)
+
+        elif op_suffix == '_BKDI':
+            start = time.perf_counter()
+            step = float(self.dct_parameters['step'].get())
+            diameter = breakthrough_diameter(self.img, step)
+            with open(self.img_path[:-4]+op_suffix+'.txt', mode = 'w') as file:
+                file.write(f'{self.img_path} - Breakthrough diameter = {diameter}')
             print(time.perf_counter() - start)
 
         #elif op_suffix == '_AAPP':
@@ -1060,6 +1071,14 @@ class Interface():
                                     textvariable = dict_parameters['factor'])
             self.lbl_param_factor.grid(row = 0, column = 0)
             self.ent_param_factor.grid(row = 0, column = 1)
+        elif op_suffix == '_BKDI':
+            dict_parameters['step'] = tk.StringVar()
+            dict_parameters['step'].set('0.1')
+            self.lbl_param_factor = tk.Label(frame, text = 'Erosion step: ')
+            self.ent_param_factor = tk.Entry(frame,
+                                    textvariable = dict_parameters['step'])
+            self.lbl_param_factor.grid(row = 0, column = 0)
+            self.ent_param_factor.grid(row = 0, column = 1)
         elif op_suffix == '_FFSO':
             #TODO
             pass
@@ -1076,7 +1095,7 @@ class Interface():
         else:
             binary = ''
         shape = str(self.img.shape)
-        text_widget.config(text = f'{name}\n{dtype} {binary}\n{shape}')
+        text_widget.config(text=f'{name}\n{dtype} {binary}\n{shape}')
 
     def get_string(self, str_key):
 
@@ -1095,38 +1114,12 @@ class Interface():
                 out_path += i[0]
             else:
                 break
-
         out_path += '.raw'
         save_raw(out_path, img, config, config_order)
         messagebox.showinfo('Done converting',
                             f'Raw image with config saved as {out_path}')
 
 
-def processa(input_path, output_path):
-    interface = Interface(input_path, output_path)
-    interface.rot.mainloop()
-
-
 if __name__ == "__main__":
-    # execute only if run as a script
     interface = Interface()
     interface.root.mainloop()
-
-
-if False:
-
-    rock = np.ones((20, 20, 100))
-    s = AA_pore_scale_permeability(rock)
-    c_field = s.rock
-    half_x = c_field.shape[0]
-    half_z = c_field.shape[2]
-    half_x = half_x // 2
-    half_z = half_z // 2
-    c_field_x = s.rock[half_x,:,:]
-    c_field_z = s.rock[:,:,half_z]
-    v_field = s.velocity_field
-    v_field_x = v_field[half_x,:,:]
-    v_field_z = v_field[:,:,half_z]
-    p_field = s.pressure_field
-    p_field_x = p_field[half_x,:,:]
-    p_field_z = p_field[:,:,half_z]

@@ -13,6 +13,7 @@ ESTL: Export to STL
 RESC: Re-scale
 MCAV: Marching Cubes Area and Volume
 FFSO: Formation factor solver
+BKDI: Breakthrough diameter
 DESCRIPTION_OTSU: Performs an automated binarization, the threshold is chosen using Otsu variance minimization method
 DESCRIPTION_WATE: Performs a watershed image segmantation using a variation of the Gotsink method. Compactness parameter is kept, but the fixed footprint is replaced by a automated calculation for each marker, equivalent to half of its distance map value.
 DESCRIPTION_AOSE: Performs an adptative opening segmentation, an alternative method to watershed segmentation.

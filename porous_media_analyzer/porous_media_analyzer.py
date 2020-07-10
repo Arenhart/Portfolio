@@ -16,6 +16,8 @@ import tkinter.messagebox as messagebox
 import tkinter as tk
 from PIL import Image, ImageTk
 from stl import mesh
+from numba import njit, prange
+from tqdm import tqdm
 
 from conductivity_solver import ConductivitySolver
 
@@ -246,6 +248,19 @@ def check_percolation(img):
     percolating_labels_total = (percolating_labels > 0).sum()
 
     return percolating_labels_total > 0
+
+def wrap_sample(img, label = -1):
+    '''
+    Uses convex hull to label space around a sample as -1
+    '''
+    if img.max() > 127:
+        img = img // 2
+    img = img.astype('int8')
+    outside = (np.int8(1) - morphology.convex_hull_image(img))
+
+    return img - outside
+
+
 
 # IO functions
 def load_raw(raw_file_path):
@@ -483,11 +498,10 @@ def segregator(img, relative_threshold, two_d = False):
     if 'float' in str(img.dtype):
         img = (img/np.max(img)) * 254
         img - img.astype('int8')
-
     if np.max(img) > 1:
         img = otsu_threshold(img)
-    h, w, d = img.shape
 
+    h, w, d = img.shape
     tempo = time.process_time()
     print ('Start', time.process_time()-tempo)
     tempo = time.process_time()
@@ -749,6 +763,131 @@ def breakthrough_diameter(img, step = 0.2):
 
     return 2 * radius
 
+
+def covarigram_irregular(img):
+
+    img = wrap_sample(img)
+    x, y, z =  _covariogram_irregular(img)
+    return {'x_results' : x, 'y_results' : y, 'z_results' : z}
+
+
+@njit(parallel = True)
+def _covariogram_irregular(img):
+
+    x, y, z = img.shape
+    x_results = np.zeros(x//2, dtype = np.float64)
+    y_results = np.zeros(y//2, dtype = np.float64)
+    z_results = np.zeros(z//2, dtype = np.float64)
+
+    def get_normalized_correlation(left_img, right_img):
+        left_values = []
+        right_values = []
+        products = []
+        for i in range(left_img.shape[0]):
+            for j in range(left_img.shape[1]):
+                for k in range(left_img.shape[2]):
+                    left_val = left_img[i, j, k]
+                    right_val = right_img[i, j, k]
+                    if left_val == -1 or right_val == -1:
+                        continue
+                    left_values.append(left_val)
+                    right_values.append(right_val)
+                    products.append(left_val * right_val)
+        if len(left_values) == 0: return None
+        left_values = np.array(left_values)
+        right_values = np.array(right_values)
+        products = np.array(products)
+        correlation = products.mean()
+        product_of_expectations = left_values.mean() * right_values.mean()
+        left_values.sort()
+        right_values.sort()
+        expectation_of_product = (left_values * right_values).mean()
+        normalized_correlation = ((correlation - product_of_expectations)
+                                                / (expectation_of_product - product_of_expectations))
+        return normalized_correlation
+
+    for i in prange(1, x//2):
+        left_img = img[i:, :, :]
+        right_img = img[:-i, :, :]
+        result = get_normalized_correlation(left_img, right_img)
+        if not (result is None):
+            x_results[i] = result
+        else:
+            break
+
+    for i in prange(1, y//2):
+        left_img = img[:, i:, :]
+        right_img = img[:, :-i, :]
+        result = get_normalized_correlation(left_img, right_img)
+        if not (result is None):
+            y_results[i] = result
+        else:
+            break
+
+    for i in prange(1, z//2):
+        left_img = img[:, :, i:]
+        right_img = img[:, :, :-i]
+        result = get_normalized_correlation(left_img, right_img)
+        if not (result is None):
+           z_results[i] = result
+        else:
+            break
+
+
+    return x_results, y_results, z_results
+
+
+def subsampling(img, jited_func):
+
+    img = wrap_sample(img)
+    result = _subsampling(img, jited_func)
+    return result
+
+@njit(parallel = True)
+def _subsampling(img, jited_func, invalid_threshold = 0.1):
+
+    x, y, z = img.shape
+    max_radius = (min((x, y, z)) - 5) // 2
+    results = np.zeros(max_radius - 1, dtype = np.float64)
+
+    for i in prange(1, max_radius):
+        minimum= i
+        max_x = x - i - 1
+        max_y = y - i - 1
+        max_z = z - i - 1
+        for _ in range(100):
+            center = (np.random.randint(minimum, max_x),
+                      np.random.randint(minimum, max_y),
+                      np.random.randint(minimum, max_z))
+            j = i + 1
+            view = img[center[0] - i : center[0] + j,
+                              center[1] - i : center[1] + j,
+                              center[2] - i : center[2] + j]
+            invalids = (view == -1).sum() / view.size
+            if invalids <= invalid_threshold:
+                break
+        else:
+            continue
+
+        result = jited_func(view)
+        results[i] = result
+
+    return results
+
+@njit
+def _jit_porosity(img):
+
+    invalids = 0
+    pores = 0
+    x, y, z = img.shape
+    for i in range(x):
+        for j in range(y):
+            for k in range(z):
+                if img[i, j, k] == -1:
+                    invalids += 1
+                elif img[i, j, k] == 1:
+                    pores += 1
+    return pores / (img.size - invalids)
 
 #Interface
 
@@ -1120,6 +1259,14 @@ class Interface():
                             f'Raw image with config saved as {out_path}')
 
 
-if __name__ == "__main__":
+def main():
+    img = np.fromfile('small_OTSU_output.raw', dtype = 'int8')
+    img = img.reshape((100,100,100))
+    print(subsampling(img, _jit_porosity))
+
+def run():
     interface = Interface()
     interface.root.mainloop()
+
+if __name__ == "__main__":
+    main()

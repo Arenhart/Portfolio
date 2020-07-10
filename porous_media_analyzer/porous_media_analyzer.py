@@ -16,10 +16,12 @@ import tkinter.messagebox as messagebox
 import tkinter as tk
 from PIL import Image, ImageTk
 from stl import mesh
-from numba import njit, prange
+from numba import jit, njit, prange
+from numba.typed import Dict
 from tqdm import tqdm
 
 from conductivity_solver import ConductivitySolver
+from rev_estudos_numba import maxi_balls
 
 PI = math.pi
 MC_TEMPLATES_FILE = 'marching cubes templates.dat'
@@ -840,6 +842,10 @@ def _covariogram_irregular(img):
 def subsampling(img, jited_func):
 
     img = wrap_sample(img)
+
+    if jited_func == _jit_pore_footprint:
+        img = maxi_balls(img)
+
     result = _subsampling(img, jited_func)
     return result
 
@@ -870,7 +876,8 @@ def _subsampling(img, jited_func, invalid_threshold = 0.1):
             continue
 
         result = jited_func(view)
-        results[i] = result
+        if not result == -1:
+            results[i] = result
 
     return results
 
@@ -888,6 +895,26 @@ def _jit_porosity(img):
                 elif img[i, j, k] == 1:
                     pores += 1
     return pores / (img.size - invalids)
+
+@njit
+def _jit_pore_footprint(img):
+
+    pores_n = 0
+    pores_total = 0
+    x, y, z = img.shape
+    for i in range(x):
+        for j in range(y):
+            for k in range(z):
+                if img[i, j, k] > 0:
+                    pores_n += 1
+                    pores_total += img[i, j, k]
+    if pores_n == 0:
+        return -1
+    else:
+        return pores_total / pores_n
+
+
+
 
 #Interface
 
@@ -1262,7 +1289,7 @@ class Interface():
 def main():
     img = np.fromfile('small_OTSU_output.raw', dtype = 'int8')
     img = img.reshape((100,100,100))
-    print(subsampling(img, _jit_porosity))
+    print(subsampling(img, _jit_pore_footprint))
 
 def run():
     interface = Interface()

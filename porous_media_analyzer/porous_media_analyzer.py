@@ -251,6 +251,21 @@ def check_percolation(img):
 
     return percolating_labels_total > 0
 
+def remove_non_percolating(img):
+    '''
+    return image with non-percolating elements changed to 0
+    '''
+    labeled = ndimage.label(img)[0]
+    bottom_labels = np.unique(labeled[:,:,0])
+    top_labels = np.unique(labeled[:,:,-1])
+    percolating_labels = np.intersect1d(
+				               bottom_labels, top_labels, assume_unique = True)
+    if percolating_labels[0] == 0:
+        percolating_labels = percolating_labels[1:]
+
+
+    return img * np.isin(img, percolating_labels)
+
 def wrap_sample(img, label = -1):
     '''
     Uses convex hull to label space around a sample as -1
@@ -846,6 +861,17 @@ def subsampling(img, jited_func):
     if jited_func == _jit_pore_footprint:
         img = maxi_balls(img)
 
+    if jited_func == _jit_permeability:
+        #TODO fixed
+        padded_shape = [i+2 for i in img.shape]
+        padded_img = np.zeros(padded_shape, dtype = img.dtype)
+        padded_img[1:-1,1:-1,1:-1] = img
+        dist = ndimage.morphology.distance_transform_edt(padded_img)
+        dist = dist[1:-1,1:-1,1:-1]
+        dist *= 10*dist
+        dist -= 0.5
+        img = maxi_balls(img)
+
     result = _subsampling(img, jited_func)
     return result
 
@@ -914,7 +940,11 @@ def _jit_pore_footprint(img):
         return pores_total / pores_n
 
 
+@njit
+def _jit_permeability(img):
 
+    pass
+    #TODO
 
 #Interface
 

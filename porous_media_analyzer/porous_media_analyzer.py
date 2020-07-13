@@ -18,10 +18,11 @@ from PIL import Image, ImageTk
 from stl import mesh
 from numba import jit, njit, prange
 from numba.typed import Dict
-from tqdm import tqdm
 
 from conductivity_solver import ConductivitySolver
 from rev_estudos_numba import maxi_balls
+from jit_transport_solver import calculate_transport
+from jit_minkowsky import get_minkowsky_functionals, get_minkowsky_functionals_parallel, minkowsky_names
 
 PI = math.pi
 MC_TEMPLATES_FILE = 'marching cubes templates.dat'
@@ -270,10 +271,13 @@ def wrap_sample(img, label = -1):
     '''
     Uses convex hull to label space around a sample as -1
     '''
+    x , y, z = img.shape
+    outside =np.zeros((x,y,z), dtype = np.int8)
     if img.max() > 127:
         img = img // 2
     img = img.astype('int8')
-    outside = (np.int8(1) - morphology.convex_hull_image(img))
+    for k in range(z):
+        outside[:, :, k] = (np.int8(1) - morphology.convex_hull_image(img[:, :, k]))
 
     return img - outside
 
@@ -781,7 +785,7 @@ def breakthrough_diameter(img, step = 0.2):
     return 2 * radius
 
 
-def covarigram_irregular(img):
+def covariogram_irregular(img):
 
     img = wrap_sample(img)
     x, y, z =  _covariogram_irregular(img)
@@ -819,8 +823,11 @@ def _covariogram_irregular(img):
         left_values.sort()
         right_values.sort()
         expectation_of_product = (left_values * right_values).mean()
-        normalized_correlation = ((correlation - product_of_expectations)
-                                                / (expectation_of_product - product_of_expectations))
+        try:
+            normalized_correlation = ((correlation - product_of_expectations)
+                                                    / (expectation_of_product - product_of_expectations))
+        except:
+            normalized_correlation = 1
         return normalized_correlation
 
     for i in prange(1, x//2):
@@ -857,30 +864,36 @@ def _covariogram_irregular(img):
 def subsampling(img, jited_func):
 
     img = wrap_sample(img)
+    result_length = 1
 
     if jited_func == _jit_pore_footprint:
         img = maxi_balls(img)
 
     if jited_func == _jit_permeability:
-        #TODO fixed
         padded_shape = [i+2 for i in img.shape]
         padded_img = np.zeros(padded_shape, dtype = img.dtype)
         padded_img[1:-1,1:-1,1:-1] = img
-        dist = ndimage.morphology.distance_transform_edt(padded_img)
+        dist = ndimage.morphology.distance_transform_edt(padded_img).astype(np.float32)
         dist = dist[1:-1,1:-1,1:-1]
-        dist *= 10*dist
+        dist *= dist
         dist -= 0.5
-        img = maxi_balls(img)
+        result_length = 3
 
-    result = _subsampling(img, jited_func)
+    if jited_func == _jit_formation_factor:
+        result_length = 3
+
+    if jited_func == _jit_minkowsky:
+        result_length = 6
+
+    result = _subsampling(img, jited_func, result_length)
     return result
 
 @njit(parallel = True)
-def _subsampling(img, jited_func, invalid_threshold = 0.1):
+def _subsampling(img, jited_func,  result_length, invalid_threshold = 0.1):
 
     x, y, z = img.shape
     max_radius = (min((x, y, z)) - 5) // 2
-    results = np.zeros(max_radius - 1, dtype = np.float64)
+    results = np.zeros((max_radius - 1, result_length), dtype = np.float64)
 
     for i in prange(1, max_radius):
         minimum= i
@@ -901,9 +914,7 @@ def _subsampling(img, jited_func, invalid_threshold = 0.1):
         else:
             continue
 
-        result = jited_func(view)
-        if not result == -1:
-            results[i] = result
+        results[i, :] = jited_func(view)
 
     return results
 
@@ -943,8 +954,91 @@ def _jit_pore_footprint(img):
 @njit
 def _jit_permeability(img):
 
-    pass
-    #TODO
+    return calculate_transport(img)
+
+
+@njit
+def _jit_formation_factor(img):
+
+    return calculate_transport(img)
+
+
+@njit
+def _jit_minkowsky(img):
+
+    x, y, z = img.shape
+    unwraped = img.copy()
+    for i in range(x):
+        for j in range(y):
+            for k in range(z):
+                if unwraped[i, j, k] == -1:
+                    unwraped[i, j, k] == 0
+    return get_minkowsky_functionals(unwraped)
+
+
+def erosion_minkowsky(img):
+
+    results = []
+    eroded_img = img
+    while True:
+        if eroded_img.sum() == 0:
+            break
+        results.append(get_minkowsky_functionals_parallel(eroded_img))
+        eroded_img = ndimage.morphology.binary_erosion(eroded_img)
+
+    return results
+
+
+def full_morphology_characterization(img):
+
+    img = (img>=1).astype(np.int8)
+    output = {}
+    #returns dictonary in form {'x_results' : x, 'y_results' : y, 'z_results' : z}
+    result = covariogram_irregular(img)
+    output['covariogram_size_x'] = result['x_results']
+    output['covariogram_size_y'] = result['y_results']
+    output['covariogram_size_z'] = result['z_results']
+    result = covariogram_irregular(maxi_balls(img))
+    output['covariogram_size_x'] = result['x_results']
+    output['covariogram_size_y'] = result['y_results']
+    output['covariogram_size_z'] = result['z_results']
+    #returns list of dictionaries
+    result = erosion_minkowsky(img)
+    for name in minkowsky_names:
+        output[f'erosion_minkowsky_{name}'] = []
+    for erosion_result in result:
+        for name, value in zip(minkowsky_names, erosion_result):
+            output[f'erosion_minkowsky_{name}'].append(value)
+    result = subsampling(img, _jit_minkowsky)
+    for name in minkowsky_names:
+        output[f'subsample_minkowsky_{name}'] = []
+    for erosion_result in result:
+        for name, value in zip(minkowsky_names, erosion_result):
+            output[f'subsample_minkowsky_{name}'].append(value)
+    #return a list
+    output['subsample_phase'] = subsampling(img, _jit_porosity)
+    output['subsample_footprint'] = subsampling(img, _jit_pore_footprint)
+    #return a list of triplets
+    result = subsampling(img, _jit_permeability)
+    output['subsampling_permeability_x'] = []
+    output['subsampling_permeability_y'] = []
+    output['subsampling_permeability_z'] = []
+    for x, y, z in result:
+        output['subsampling_permeability_x'].append(x)
+        output['subsampling_permeability_y'].append(y)
+        output['subsampling_permeability_z'].append(z)
+    result = subsampling(img, _jit_formation_factor)
+    output['subsampling_formation_factor_x'] = []
+    output['subsampling_formation_factor_y'] = []
+    output['subsampling_formation_factor_z'] = []
+    for x, y, z in result:
+        output['subsampling_formation_factor_x'].append(x)
+        output['subsampling_formation_factor_y'].append(y)
+        output['subsampling_formation_factor_z'].append(z)
+
+    #expects a return of dictionary of each single variable, key i string, value is list
+    return output
+
 
 #Interface
 
@@ -980,7 +1074,8 @@ class Interface():
                 (self.get_string('RESC'), rescale, False, '_RESC'),
                 (self.get_string('MCAV'), marching_cubes_area_and_volume, False, '_MCAV'),
                 (self.get_string('FFSO'), formation_factor_solver, False, '_FFSO'),
-                (self.get_string('BKDI'), breakthrough_diameter, False, '_BKDI')):
+                (self.get_string('BKDI'), breakthrough_diameter, False, '_BKDI'),
+                (self.get_string('FMCH'), breakthrough_diameter, False, '_FMCH')):
             self.operations[op_name] = {
                     'function': func,
                     'preview': preview,
@@ -1207,6 +1302,14 @@ class Interface():
                 file.write(f'{self.img_path} - Breakthrough diameter = {diameter}')
             print(time.perf_counter() - start)
 
+        elif op_suffix == '_FMCH':
+            start = time.perf_counter()
+            characterizations = full_morphology_characterization(self.img)
+            with open(self.img_path[:-4]+op_suffix+'.txt', mode = 'w') as file:
+                for key, values in characterizations.items():
+                    file.write(f'{key},{str(values)[1:-1]}\n')
+            print(time.perf_counter() - start)
+
         #elif op_suffix == '_AAPP':
         #elif op_suffix == '_SBPP':
         messagebox.showinfo('Done', 'Done')
@@ -1317,9 +1420,7 @@ class Interface():
 
 
 def main():
-    img = np.fromfile('small_OTSU_output.raw', dtype = 'int8')
-    img = img.reshape((100,100,100))
-    print(subsampling(img, _jit_pore_footprint))
+    pass
 
 def run():
     interface = Interface()

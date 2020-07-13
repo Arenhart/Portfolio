@@ -16,8 +16,8 @@ def coord2index(img, coord):
     ii, jj, kk = coord
     return ii + jj*x + kk*x*y
 
-
-def calculate_transport(img, **kwargs):
+@njit
+def calculate_transport(img):
     '''
     Solves the conductivity of the given 3d image
     non-negative values are considered the transport property of the element
@@ -26,17 +26,20 @@ def calculate_transport(img, **kwargs):
 
     results = []
     for ax in (0,1,2):
-        a, b = _create_diagonal_array(img, axis = ax)
-        x = _solve_bicg(a, b)
-        flow_array = _create_flow_array(img, x)[:,:,:,ax]
-        cross_section = list(flow_array.shape)
-        cross_section[ax] -= 1
-        length = cross_section.pop(ax)
-        total_flow = flow_array.sum()/length
-        transport_index = total_flow *((length+2)/(cross_section[0] * cross_section[1]))
-        results.append(transport_index)
+        try:
+            a, b = _create_diagonal_array(img, axis = ax)
+            x = _solve_bicg(a, b)
+            flow_array = _create_flow_array(img, x)[:,:,:,ax]
+            cross_section = list(flow_array.shape)
+            cross_section[ax] -= 1
+            length = cross_section.pop(ax)
+            total_flow = flow_array.sum()/length
+            transport_index = total_flow *((length+2)/(cross_section[0] * cross_section[1]))
+            results.append(transport_index)
+        except:
+            results.append(0)
 
-    return results
+    return np.array(results)
 
 
 

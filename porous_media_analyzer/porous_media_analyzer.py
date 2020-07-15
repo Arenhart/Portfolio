@@ -271,14 +271,18 @@ def wrap_sample(img, label = -1):
     '''
     Uses convex hull to label space around a sample as -1
     '''
+    print ('Wraping sample')
     x , y, z = img.shape
     outside =np.zeros((x,y,z), dtype = np.int8)
     if img.max() > 127:
         img = img // 2
     img = img.astype('int8')
-    for k in range(z):
-        outside[:, :, k] = (np.int8(1) - morphology.convex_hull_image(img[:, :, k]))
+    for i in range(x):
+        sys.stdout.write(f"\rWraping {(100 * i / x):.2f} %")
+        sys.stdout.flush()
+        outside[i, :, :] = (np.int8(1) - morphology.convex_hull_image(img[i, :, :]))
 
+    print()
     return img - outside
 
 
@@ -795,6 +799,7 @@ def covariogram_irregular(img):
 @njit(parallel = True)
 def _covariogram_irregular(img):
 
+    print('Begin irregular covariogram')
     x, y, z = img.shape
     x_results = np.zeros(x//2, dtype = np.float64)
     y_results = np.zeros(y//2, dtype = np.float64)
@@ -994,21 +999,32 @@ def full_morphology_characterization(img):
     img = (img>=1).astype(np.int8)
     output = {}
     #returns dictonary in form {'x_results' : x, 'y_results' : y, 'z_results' : z}
+    print('Starting phase covariogram')
+    start = time.perf_counter()
     result = covariogram_irregular(img)
     output['covariogram_size_x'] = result['x_results']
     output['covariogram_size_y'] = result['y_results']
     output['covariogram_size_z'] = result['z_results']
+    print (f'Took {time.perf_counter() - start} seconds')
+    print('Starting footprint covariogram')
+    start = time.perf_counter()
     result = covariogram_irregular(maxi_balls(img))
     output['covariogram_size_x'] = result['x_results']
     output['covariogram_size_y'] = result['y_results']
     output['covariogram_size_z'] = result['z_results']
     #returns list of dictionaries
+    print (f'Took {time.perf_counter() - start} seconds')
+    print('Starting erosion Minkowsky')
+    start = time.perf_counter()
     result = erosion_minkowsky(img)
     for name in minkowsky_names:
         output[f'erosion_minkowsky_{name}'] = []
     for erosion_result in result:
         for name, value in zip(minkowsky_names, erosion_result):
             output[f'erosion_minkowsky_{name}'].append(value)
+    print (f'Took {time.perf_counter() - start} seconds')
+    print('Starting subsamplig Minkowsky')
+    start = time.perf_counter()
     result = subsampling(img, _jit_minkowsky)
     for name in minkowsky_names:
         output[f'subsample_minkowsky_{name}'] = []
@@ -1016,9 +1032,18 @@ def full_morphology_characterization(img):
         for name, value in zip(minkowsky_names, erosion_result):
             output[f'subsample_minkowsky_{name}'].append(value)
     #return a list
+    print (f'Took {time.perf_counter() - start} seconds')
+    print('Starting phase subsampling')
+    start = time.perf_counter()
     output['subsample_phase'] = subsampling(img, _jit_porosity)
+    print (f'Took {time.perf_counter() - start} seconds')
+    print('Starting footprint subsample')
+    start = time.perf_counter()
     output['subsample_footprint'] = subsampling(img, _jit_pore_footprint)
     #return a list of triplets
+    print (f'Took {time.perf_counter() - start} seconds')
+    print('Starting permeability subsampling')
+    start = time.perf_counter()
     result = subsampling(img, _jit_permeability)
     output['subsampling_permeability_x'] = []
     output['subsampling_permeability_y'] = []
@@ -1027,6 +1052,9 @@ def full_morphology_characterization(img):
         output['subsampling_permeability_x'].append(x)
         output['subsampling_permeability_y'].append(y)
         output['subsampling_permeability_z'].append(z)
+    print (f'Took {time.perf_counter() - start} seconds')
+    print('Starting formation factor subsampling')
+    start = time.perf_counter()
     result = subsampling(img, _jit_formation_factor)
     output['subsampling_formation_factor_x'] = []
     output['subsampling_formation_factor_y'] = []
@@ -1035,6 +1063,7 @@ def full_morphology_characterization(img):
         output['subsampling_formation_factor_x'].append(x)
         output['subsampling_formation_factor_y'].append(y)
         output['subsampling_formation_factor_z'].append(z)
+    print (f'Took {time.perf_counter() - start} seconds')
 
     #expects a return of dictionary of each single variable, key i string, value is list
     return output
@@ -1427,4 +1456,4 @@ def run():
     interface.root.mainloop()
 
 if __name__ == "__main__":
-    main()
+    run()

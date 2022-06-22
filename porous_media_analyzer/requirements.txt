@@ -8,7 +8,7 @@ matplotlib == 3.1.3
 
 # D:\Scripts Python\Portfolio\Porous Media Analyzer\conductivity_solver.py: 9
 # D:\Scripts Python\Portfolio\Porous Media Analyzer\porous_media_analyzer.py: 9
-numpy == 1.19.0
+numpy == 1.22.0
 
 # D:\Scripts Python\Portfolio\Porous Media Analyzer\porous_media_analyzer.py: 18
 numpy_stl == 2.10.1
